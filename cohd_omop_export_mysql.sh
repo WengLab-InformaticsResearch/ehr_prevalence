@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Script for exporting data from MySQL server for EHR prevalence analysis. 
+#
+# Note, this script is out of date for performing semantic level (hierarchical concept) analysis.
+# This should still be usable for term level analysis. Please see cohd_omop_export_sql_server.sql
+# for the necessary queries for semantic level analysis. 
+
 # Connection settings for MySQL server. 
 # You can fill these in or leave them empty to be prompted to enter these settings at runtime.
 username=
