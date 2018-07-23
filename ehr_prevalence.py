@@ -45,7 +45,7 @@ def logging_setup(output_dir):
     output_dir: string - Location to create log file
     """
     # Set up logger to print to file and stream
-    log_formatter = logging.Formatter("%(asctime)s %(message)s", datefmt='%H:%M:%S')
+    log_formatter = logging.Formatter("%(asctime)s %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
 
@@ -494,7 +494,7 @@ def single_concept_yearly_counts(output_dir, cp_data, randomize=True, min_count=
     
     # Generate the filename based on parameters
     randomize_str = '_randomized' if randomize else '_unrandomized'
-    min_count_str = '_mincount=%d' % min_count
+    min_count_str = '_mincount-%d' % min_count
     timestamp = '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     filename = 'concept_counts_yearly' + randomize_str + min_count_str + timestamp + '.txt'
     
@@ -545,7 +545,7 @@ def single_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
     
     # Generate the filename based on parameters
     randomize_str = '_randomized' if randomize else '_unrandomized'
-    min_count_str = '_mincount=%d' % min_count
+    min_count_str = '_mincount-%d' % min_count
     range_str = '_%d-%d' % (cp_ranged.year_min, cp_ranged.year_max)
     if additional_file_label is not None:
         additional_file_label = '_' + str(additional_file_label)
@@ -605,7 +605,7 @@ def paired_concept_yearly_counts(output_dir, cp_data, randomize=True, min_count=
     
     # Generate the filename based on parameters
     randomize_str = '_randomized' if randomize else '_unrandomized'
-    min_count_str = '_mincount=%d' % min_count
+    min_count_str = '_mincount-%d' % min_count
     timestamp = '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     filename = 'concept_pair_counts_yearly' + randomize_str + min_count_str + timestamp + '.txt'
 
@@ -679,7 +679,7 @@ def paired_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
     
     # Generate the filename based on parameters
     randomize_str = '_randomized' if randomize else '_unrandomized'
-    min_count_str = '_mincount=%d' % min_count
+    min_count_str = '_mincount-%d' % min_count
     range_str = '_%d-%d' % (year_min, year_max)
     if additional_file_label is not None:
         additional_file_label = '_' + str(additional_file_label)
@@ -707,7 +707,7 @@ def paired_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
     # How often to display progress message
     n_concepts = len(concept_ids)
     n_concept_pairs = numpy.sum(numpy.array(range(n_concepts - 1), dtype=numpy.float))
-    progress_interval = 1
+    progress_interval = 10
     logging.info('%d concepts meeting min_count, %d possible pairs of concepts' % (len(concept_ids), n_concept_pairs))
 
     # Write out each concept's count
@@ -734,6 +734,10 @@ def paired_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
                 npts = numpy.random.poisson(npts)
             
             writer.writerow([concept_id_1, concept_id_2, npts])
+
+    # Flush
+    fh.flush()
+    os.fsync(fh.fileno())
 
     fh.close()
 

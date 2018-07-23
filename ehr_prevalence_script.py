@@ -4,9 +4,9 @@ import gc
 
 # Settings
 # Directory where data are stored
-data_dir = r'C:\Users\ct2865\Documents\cohd_data\data'  
+data_dir = r'/home/user_xxxx/cohd/data'
 # Directory where results will be stored
-results_dir = r'C:\Users\ct2865\Documents\cohd_data\results'  
+results_dir = r'/home/user_xxxx/cohd/results'
 # File names of database dump files
 file_person = 'person.txt'
 file_concept_patient = 'unique_patient_concept_pairs_date.txt'
@@ -23,7 +23,7 @@ range_5year = (2013, 2017)
 # Range of years to include to calculate the  lifetime dataset (inclusive)
 range_lifetime = (1985, 2018)
 # Randomize
-randomize = False
+randomize = True
 # Minimum count for a concept to be included (inclusive)
 min_count = 11
 
@@ -79,5 +79,5 @@ gc.collect()
 
 # Annual counts
 # single_concept_yearly_counts(results_dir, cp_data, randomize, min_count)
-# paired_concept_yearly_counts(results_dir, cp_data, randomize, min_count)  
+# paired_concept_yearly_counts(results_dir, cp_data, randomize, min_count)
 
