@@ -272,7 +272,7 @@ def load_concepts(file, database, extra_header_lines_skip=0):
 
     # Read header
     header = reader.next()
-    columns = _find_columns(header, ['concept_id', 'concept_name', 'domain_id', 'concept_class_id'])
+    columns = _find_columns(header, ['concept_id', 'concept_name', 'domain_id', 'vocabulary_id', 'concept_class_id'])
     table_width = len(header)
 
     # Skip extra formatting lines after header
@@ -283,11 +283,12 @@ def load_concepts(file, database, extra_header_lines_skip=0):
     concepts = dict()
     for row in reader:
         if len(row) == table_width:
-            concept_id, concept_name, domain_id, concept_class_id = [row[i] for i in columns]
+            concept_id, concept_name, domain_id, vocabulary_id, concept_class_id = [row[i] for i in columns]
             # Convert concept_id to int
             concept_id = int(concept_id)
             concepts[concept_id] = {'concept_name': concept_name,
                                     'domain_id': domain_id,
+                                    'vocabulary_id': vocabulary_id,
                                     'concept_class_id': concept_class_id}
 
     logging.info("%d concept definitions loaded" % len(concepts))
@@ -379,11 +380,13 @@ def merge_concepts_years(cp_data, year_min, year_max):
     pts_merged = list()
     for year, pts in year_patient.items():
         if year >= year_min and year <= year_max:
+            # Note: faster to concatenate lists and then convert to set later
             pts_merged.extend(year_patient[year])
-    n_patients = float(len(set(pts_merged)))
+    pts_merged = set(pts_merged)
+    n_patients = float(len(pts_merged))
 
     logging.info('%d concepts, %d patients (this is the denominator for prevalence)' %
-                 (len(concepts_ranged), len(pts_merged)))
+                 (len(concepts_ranged), n_patients))
         
     return ConceptPatientDataMerged(concepts_ranged, pts_merged, n_patients, year_min, year_max)
 
@@ -408,7 +411,7 @@ def merge_ranged_concept_descendants(cp_ranged, concepts, descendants):
 
     concept_patient = cp_ranged.concept_patient
 
-    # Keep track of which concepts are finished
+    # Keep track of which concepts are finished.
     unfinished_concepts = set(concepts.keys())
 
     # Loop until we have merged all hierarchical concepts
@@ -421,7 +424,8 @@ def merge_ranged_concept_descendants(cp_ranged, concepts, descendants):
         logging.info('iteration %d: %d concepts remaining' % (i, n_unfinished_concepts))
 
         # How often to display progress message
-        progress_interval = round(n_unfinished_concepts / 10)
+        # progress_interval = round(n_unfinished_concepts / 10)	# Show progress every 10%
+        progress_interval = 0	# Don't show progress
 
         # Keep track of which concepts were finished in this iteration
         newly_finished_concepts = set()
@@ -546,13 +550,14 @@ def single_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
     # Generate the filename based on parameters
     randomize_str = '_randomized' if randomize else '_unrandomized'
     min_count_str = '_mincount-%d' % min_count
+    n_pts_str = '_N-%d' % cp_ranged.num_patients
     range_str = '_%d-%d' % (cp_ranged.year_min, cp_ranged.year_max)
     if additional_file_label is not None:
         additional_file_label = '_' + str(additional_file_label)
     else:
         additional_file_label = ''
     timestamp = '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    label_str = range_str + randomize_str + min_count_str + additional_file_label + timestamp
+    label_str = range_str + randomize_str + min_count_str + n_pts_str + additional_file_label + timestamp
     filename = 'concept_counts' + label_str + '.txt'
     logging.info(label_str)
 
@@ -680,13 +685,14 @@ def paired_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
     # Generate the filename based on parameters
     randomize_str = '_randomized' if randomize else '_unrandomized'
     min_count_str = '_mincount-%d' % min_count
+    n_pts_str = '_N-%d' % cp_ranged.num_patients
     range_str = '_%d-%d' % (year_min, year_max)
     if additional_file_label is not None:
         additional_file_label = '_' + str(additional_file_label)
     else:
         additional_file_label = ''
     timestamp = '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    label_str = range_str + randomize_str + min_count_str + additional_file_label + timestamp
+    label_str = range_str + randomize_str + min_count_str + n_pts_str + additional_file_label + timestamp
     filename = 'concept_pair_counts' + label_str + '.txt'
     logging.info(label_str)
 
@@ -707,7 +713,7 @@ def paired_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
     # How often to display progress message
     n_concepts = len(concept_ids)
     n_concept_pairs = numpy.sum(numpy.array(range(n_concepts - 1), dtype=numpy.float))
-    progress_interval = 10
+    progress_interval = 100
     logging.info('%d concepts meeting min_count, %d possible pairs of concepts' % (len(concept_ids), n_concept_pairs))
 
     # Write out each concept's count

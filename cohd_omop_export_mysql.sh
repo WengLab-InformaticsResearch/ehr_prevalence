@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# DEPRECATED
+# This file has not been updated for hierarchical analysis. Please see cohd_omop_export_sql_server.sql.
+
 # Script for exporting data from MySQL server for EHR prevalence analysis. 
 #
 # Note, this script is out of date for performing semantic level (hierarchical concept) analysis.
