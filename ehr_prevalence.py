@@ -50,7 +50,7 @@ def logging_setup(output_dir):
     root_logger.setLevel(logging.DEBUG)
 
     # File log
-    log_file = 'log_' + datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S") + '.txt'
+    log_file = 'log_' + datetime.datetime.now().strftime("%Y-%m-%d_%H%M") + '.txt'
     log_file = os.path.join(output_dir, log_file)
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(log_formatter)
@@ -131,7 +131,40 @@ def _find_columns(header, column_names):
     return [[i for i in range(len(header)) if header[i] == column_name][0]
             for column_name in column_names]
 
-    
+
+def load_iatrogenic_codes(file, database='NA'):
+    """Load a list of iatrogenic codes to exclude from analysis
+
+    Parameters
+    ----------
+    file: string - Patient data file
+    database: string - Originating database. See _open_csv_reader
+
+    Returns
+    -------
+    Set of iatrogenic concept IDs (int)
+    """
+    logging.info("Loading iatrogenic codes ...")
+
+    # Open csv reader
+    fh, reader = _open_csv_reader(file, database)
+
+    # Each row should have 1 column
+    table_width = 1
+
+    # Read in each row
+    iatrogenic_ids = set()
+    for row in reader:
+        if len(row) == table_width:
+            # Get the iatrogenic concept ID and convert to int
+            iatrogenic_ids.add(int(row[0]))
+
+    logging.info("%d iatrogenic concepts loaded" % len(iatrogenic_ids))
+
+    fh.close()
+    return iatrogenic_ids
+
+
 def load_patient_data(file, database, extra_header_lines_skip=0):
     """Load patient demographics data extracted from the OMOP person table
     
@@ -177,7 +210,7 @@ def load_patient_data(file, database, extra_header_lines_skip=0):
     return patient_info
 
     
-def load_concept_patient_data(file, database, patient_info, extra_header_lines_skip=0):
+def load_concept_patient_data(file, database, patient_info, extra_header_lines_skip=0, iatrogenic_ids=set()):
     """Load concept-year-patient data
     
     Parameters
@@ -220,8 +253,8 @@ def load_concept_patient_data(file, database, patient_info, extra_header_lines_s
             person_id = int(person_id)
             concept_id = int(concept_id)
 
-            # Skip when concept_id is 0
-            if concept_id == 0:
+            # Skip when concept_id is 0 or iatrogenic
+            if concept_id == 0 or concept_id in iatrogenic_ids:
                 continue
             
             # Track concepts and patients by year
@@ -272,8 +305,13 @@ def load_concepts(file, database, extra_header_lines_skip=0):
 
     # Read header
     header = reader.next()
-    columns = _find_columns(header, ['concept_id', 'concept_name', 'domain_id', 'vocabulary_id', 'concept_class_id'])
     table_width = len(header)
+    if table_width == 4:
+        columns = _find_columns(header, ['concept_id', 'concept_name', 'domain_id', 'concept_class_id'])
+    elif table_width == 5:
+        columns = _find_columns(header,
+                                ['concept_id', 'concept_name', 'domain_id', 'vocabulary_id', 'concept_class_id'])
+
 
     # Skip extra formatting lines after header
     for i in range(extra_header_lines_skip):
@@ -283,13 +321,21 @@ def load_concepts(file, database, extra_header_lines_skip=0):
     concepts = dict()
     for row in reader:
         if len(row) == table_width:
-            concept_id, concept_name, domain_id, vocabulary_id, concept_class_id = [row[i] for i in columns]
-            # Convert concept_id to int
-            concept_id = int(concept_id)
-            concepts[concept_id] = {'concept_name': concept_name,
-                                    'domain_id': domain_id,
-                                    'vocabulary_id': vocabulary_id,
-                                    'concept_class_id': concept_class_id}
+            if table_width == 4:
+                concept_id, concept_name, domain_id, concept_class_id = [row[i] for i in columns]
+                # Convert concept_id to int
+                concept_id = int(concept_id)
+                concepts[concept_id] = {'concept_name': concept_name,
+                                        'domain_id': domain_id,
+                                        'concept_class_id': concept_class_id}
+            elif table_width == 5:
+                concept_id, concept_name, domain_id, vocabulary_id, concept_class_id = [row[i] for i in columns]
+                # Convert concept_id to int
+                concept_id = int(concept_id)
+                concepts[concept_id] = {'concept_name': concept_name,
+                                        'domain_id': domain_id,
+                                        'vocabulary_id': vocabulary_id,
+                                        'concept_class_id': concept_class_id}
 
     logging.info("%d concept definitions loaded" % len(concepts))
     
@@ -334,7 +380,39 @@ def load_descendants(file, database, extra_header_lines_skip=0):
 
     fh.close()
     return concept_descendants
-    
+
+
+def load_concept_pairs(file):
+    """Loads a list of concept pairs by reading the output of paired_concept_ranged_counts.
+
+    This is to load a list of concept pairs to use in paired_concept_yearly_deviation
+
+    Parameters
+    ----------
+    file: string - concept_pair_counts result file
+
+    Returns
+    -------
+    List[(concept_id_1, concept_id_2]]
+    """
+    logging.info('Loading concept pairs...')
+
+    # Open csv reader
+    fh, reader = _open_csv_reader(file, 'NA')
+
+    # Skip the header
+    reader.next()
+
+    # Read in each row of the file and add the pair of concept IDs to the list
+    concept_pairs = list()
+    for row in reader:
+        if len(row) == 3:
+            # Convert concept IDs to ints
+            concept_pairs.append((row[0], row[1]))
+
+    fh.close()
+    return concept_pairs
+
     
 def merge_concepts_years(cp_data, year_min, year_max):
     """Merge data over the specified year range
@@ -425,7 +503,7 @@ def merge_ranged_concept_descendants(cp_ranged, concepts, descendants):
 
         # How often to display progress message
         # progress_interval = round(n_unfinished_concepts / 10)	# Show progress every 10%
-        progress_interval = 0	# Don't show progress
+        progress_interval = 0  # Don't show progress
 
         # Keep track of which concepts were finished in this iteration
         newly_finished_concepts = set()
@@ -527,6 +605,7 @@ def single_concept_yearly_counts(output_dir, cp_data, randomize=True, min_count=
             if randomize:
                 npts = numpy.random.poisson(npts)
 
+            # Write to file
             writer.writerow([concept_id, year, npts, npts/year_numpatients[year]])
 
     fh.close()
@@ -544,6 +623,10 @@ def single_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
     randomize: logical - True to randomize counts using Poisson (default: True)
     min_count: int - Minimum count to be included in results (inclusive, default: 11)
     additional_file_label: str - Additional label to append to the output file
+
+    Returns
+    -------
+    List of concept IDs that were exported
     """
     logging.info("Writing single concept ranged counts...")
     
@@ -556,8 +639,7 @@ def single_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
         additional_file_label = '_' + str(additional_file_label)
     else:
         additional_file_label = ''
-    timestamp = '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    label_str = range_str + randomize_str + min_count_str + n_pts_str + additional_file_label + timestamp
+    label_str = range_str + randomize_str + min_count_str + n_pts_str + additional_file_label
     filename = 'concept_counts' + label_str + '.txt'
     logging.info(label_str)
 
@@ -568,6 +650,9 @@ def single_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
     output_file = os.path.join(output_dir, filename)
     fh, writer = _open_csv_writer(output_file)
     writer.writerow(['concept_id', 'count'])
+
+    # Keep track of concepts exported
+    concepts_exported = list()
         
     # Write count of each concept
     concept_patient = cp_ranged.concept_patient
@@ -584,9 +669,15 @@ def single_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
         if randomize:
             npts = numpy.random.poisson(npts)
 
+        # Write concept ID and count to file
         writer.writerow([concept_id, npts])
 
+        # Keep track of exported concepts
+        concepts_exported.append(concept_id)
+
     fh.close()
+
+    return concepts_exported
 
     
 def paired_concept_yearly_counts(output_dir, cp_data, randomize=True, min_count=11):
@@ -675,6 +766,10 @@ def paired_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
     randomize: logical - True to randomize counts using Poisson (default: True)
     min_count: int - Minimum count to be included in results (inclusive, default: 11)
     additional_file_label: str - Additional label to append to the output file
+
+    Returns
+    -------
+    List of (concept_id_1, concept_id_2) tuples that were exported
     """
     logging.info("Writing concept pair counts...")
     
@@ -691,8 +786,7 @@ def paired_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
         additional_file_label = '_' + str(additional_file_label)
     else:
         additional_file_label = ''
-    timestamp = '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    label_str = range_str + randomize_str + min_count_str + n_pts_str + additional_file_label + timestamp
+    label_str = range_str + randomize_str + min_count_str + n_pts_str + additional_file_label
     filename = 'concept_pair_counts' + label_str + '.txt'
     logging.info(label_str)
 
@@ -716,6 +810,9 @@ def paired_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
     progress_interval = 100
     logging.info('%d concepts meeting min_count, %d possible pairs of concepts' % (len(concept_ids), n_concept_pairs))
 
+    # Keep track of concept-pairs
+    concept_pairs_exported = list()
+
     # Write out each concept's count
     for counter, concept_id_1 in enumerate(concept_ids):
         # Progress message
@@ -738,12 +835,147 @@ def paired_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
             # Randomize counts to protect patients
             if randomize:
                 npts = numpy.random.poisson(npts)
-            
+
+            # Write concept_id_1, concept_id_2, and co-occurrence count to file
             writer.writerow([concept_id_1, concept_id_2, npts])
 
-    # Flush
-    fh.flush()
-    os.fsync(fh.fileno())
+            # Keep track of concept-pairs
+            concept_pairs_exported.append((concept_id_1, concept_id_2))
+
+        # Flush the file at each major interval
+        fh.flush()
+        os.fsync(fh.fileno())
+
+    fh.close()
+
+    return concept_pairs_exported
+
+
+def single_concept_yearly_deviation(output_dir, cp_data, concepts, year_range, randomize=True, file_label=None):
+    """Writes mean and standard deviation of concept prevalences per year over the specified year range
+
+    Writes results to file <output_dir>\concept_counts_yearly_<settings>.txt
+
+    Parameters
+    ----------
+    output_dir: string - Path to folder where the results should be written
+    cp_data: ConceptPatientData
+    concepts: List of int - List of concept IDs to process
+    year_range: tuple of ints - (first year to include, last year to include)
+    randomize: boolean - True, to randomize the mean (standard deviation is not randomized)
+    file_label: String - Additional label for output file
+    """
+    logging.info("Writing single concept yearly deviation...")
+
+    concept_year_patient = cp_data.concept_year_patient
+    year_numpatients = cp_data.year_numpatients
+
+    # Generate the filename based on parameters
+    year_min = year_range[0]
+    year_max = year_range[1]
+    randomize_label = 'randomized' if randomize else 'nonrandomized'
+    filename = 'concept_yearly_deviation_{year_min}-{year_max}_{randomize}_{label}.txt'.format(year_min=year_min,
+            year_max=year_max, randomize=randomize_label, label=file_label)
+
+    # Open csv_writer and write header
+    output_file = os.path.join(output_dir, filename)
+    fh, writer = _open_csv_writer(output_file)
+    writer.writerow(['concept_id', 'mean', 'std'])
+
+    # Get the number of patients per year
+    ppy = numpy.array([year_numpatients[y] for y in range(year_min, year_max + 1)], dtype=float)
+
+    # How often to display progress message
+    n_concepts = len(concept_year_patient)
+    progress_interval = numpy.Inf  # Inf --> no progress messages
+
+    # Iterate over all concept IDs in concepts
+    for counter, concept_id in enumerate(concepts):
+        # Progress message
+        if counter % progress_interval == 0:
+            logging.info('%d%%' % round(counter / float(n_concepts) * 100))
+
+        # Get the counts for this concept in each year
+        yp = concept_year_patient[concept_id]  # year-patient data for concept_id
+        counts = numpy.array([len(yp[y]) for y in range(year_min, year_max + 1)], dtype=float)
+
+        # Calculate standard deviation of the true prevalence rates
+        s = numpy.std(counts / ppy)
+
+        # Randomize each annual count
+        if randomize:
+            counts = numpy.random.poisson(counts)
+
+        # Calculate the mean of the (maybe randomized) prevalence rates
+        m = numpy.mean(counts / ppy)
+
+        # Write concept_id, mean, and standard deviation to file
+        writer.writerow([concept_id, m, s])
+
+    fh.close()
+
+
+def paired_concept_yearly_deviation(output_dir, cp_data, concept_pairs, year_range, randomize=True, file_label=None):
+    """Writes mean and standard deviation of concept pair co-occurrences per year over the specified year range
+
+    Writes results to file <output_dir>\concept_counts_yearly_<settings>.txt
+
+    Parameters
+    ----------
+    output_dir: string - Path to folder where the results should be written
+    cp_data: ConceptPatientData
+    concept_pairs: List of tuples of int - List of concept ID pairs to process
+    year_range: tuple of ints - (first year to include, last year to include)
+    randomize: boolean - True, to randomize the mean (standard deviation is not randomized)
+    file_label: String - Additional label for output file
+    """
+    logging.info("Writing concept pairs yearly deviation...")
+
+    concept_year_patient = cp_data.concept_year_patient
+    year_numpatients = cp_data.year_numpatients
+
+    # Generate the filename based on parameters
+    year_min = year_range[0]
+    year_max = year_range[1]
+    randomize_label = 'randomized' if randomize else 'nonrandomized'
+    filename = 'concept_pair_yearly_deviation_{year_min}-{year_max}_{randomize}_{label}.txt'.format(year_min=year_min,
+            year_max=year_max, randomize=randomize_label, label=file_label)
+
+    # Open csv_writer and write header
+    output_file = os.path.join(output_dir, filename)
+    fh, writer = _open_csv_writer(output_file)
+    writer.writerow(['concept_id1', 'concept_id2', 'mean', 'std'])
+
+    # Get the number of patients per year
+    ppy = numpy.array([year_numpatients[y] for y in range(year_min, year_max + 1)], dtype=float)
+
+    # How often to display progress message
+    n_concept_pairs = len(concept_pairs)
+    progress_interval = 100000
+
+    # Iterate over all concept IDs in concepts
+    for counter, (concept_id_1, concept_id_2) in enumerate(concept_pairs):
+        # Progress message
+        if counter % progress_interval == 0:
+            logging.info('%d, %.04f%%' % (counter, counter / float(n_concept_pairs) * 100))
+
+        # Get the co-occurrence rates for these concepts in each year
+        yp1 = concept_year_patient[concept_id_1]  # year-patient data for concept_id_1
+        yp2 = concept_year_patient[concept_id_2]  # year-patient data for concept_id_2
+        counts = numpy.array([len(yp1[y] & yp2[y]) for y in range(year_min, year_max + 1)], dtype=float)
+
+        # Calculate standard deviation of the true prevalence rates
+        s = numpy.std(counts / ppy)
+
+        # Randomize each annual count
+        if randomize:
+            counts = numpy.random.poisson(counts)
+
+        # Calculate the mean of the (maybe randomized) prevalence rates
+        m = numpy.mean(counts / ppy)
+
+        # Write concept_id, mean, and standard deviation to file
+        writer.writerow([concept_id_1, concept_id_2, m, s])
 
     fh.close()
 

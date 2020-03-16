@@ -1,4 +1,5 @@
 from ehr_prevalence import *
+from datetime import datetime
 import gc
 
 
@@ -27,6 +28,9 @@ randomize = True
 # Minimum count for a concept to be included (inclusive)
 min_count = 11
 
+# Timestamp to label output files with
+timestamp = '_' + datetime.now().strftime("%Y%m%d-%H%M")
+
 # Set up logging
 logging_setup(results_dir)
 
@@ -52,10 +56,14 @@ gc.collect()
 # 5-year dataset
 cp_data_5year = merge_concepts_years(cp_data, range_5year[0], range_5year[1])
 cp_data_5year_hier = merge_ranged_concept_descendants(cp_data_5year, concepts, descendants_dir)
-single_concept_ranged_counts(results_dir, cp_data_5year_hier, randomize, min_count,
-                             additional_file_label='hierarchical')
-paired_concept_ranged_counts(results_dir, cp_data_5year_hier, randomize, min_count,
-                             additional_file_label='hierarchical')
+concepts_5year = single_concept_ranged_counts(results_dir, cp_data_5year_hier, randomize, min_count,
+                                              additional_file_label='hierarchical' + timestamp)
+single_concept_yearly_deviation(results_dir, cp_data, concepts_5year, range_5year, randomize=True,
+                                file_label='hierarchical' + timestamp)
+concept_pairs_5y = paired_concept_ranged_counts(results_dir, cp_data_5year_hier, randomize, min_count,
+                                                additional_file_label='hierarchical' + timestamp)
+paired_concept_yearly_deviation(results_dir, cp_data, concept_pairs_5y, range_5year, randomize=True,
+                                file_label='hierarchical' + timestamp)
 
 # Attempt to free up some large chunks of memory
 del cp_data_5year
@@ -66,10 +74,15 @@ gc.collect()
 # Lifetime dataset
 cp_data_life = merge_concepts_years(cp_data, range_lifetime[0], range_lifetime[1])
 cp_data_life_hier = merge_ranged_concept_descendants(cp_data_life, concepts, descendants_dir)
-single_concept_ranged_counts(results_dir, cp_data_life_hier, randomize, min_count,
-                             additional_file_label='hierarchical')
-paired_concept_ranged_counts(results_dir, cp_data_life_hier, randomize, min_count,
-                             additional_file_label='hierarchical')
+concepts_life = single_concept_ranged_counts(results_dir, cp_data_life_hier, randomize, min_count,
+                                             additional_file_label='hierarchical' + timestamp)
+range_lifetime_deviation = (1986, 2017)  # Only use data from full years for variance
+single_concept_yearly_deviation(results_dir, cp_data, concepts_life, range_lifetime_deviation, randomize=True,
+                                file_label='hierarchical' + timestamp)
+concept_pairs_life = paired_concept_ranged_counts(results_dir, cp_data_life_hier, randomize, min_count,
+                                                  additional_file_label='hierarchical' + timestamp)
+paired_concept_yearly_deviation(results_dir, cp_data, concept_pairs_life, range_lifetime_deviation, randomize=True,
+                                file_label='hierarchical' + timestamp)
 
 # Attempt to free up some large chunks of memory
 del cp_data_life
