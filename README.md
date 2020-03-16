@@ -64,6 +64,14 @@ To share data: we recommend ```min_count = 11``` and ```randomize = True``` (def
 3. If needed, update the code for reading in the text files if your database writes the text files in a different format
 4. run ```python ./ehr_prevalence_script.py```
 
+
+### EHR temporal co-occurrence analyses
+Temporal occurrence and co-occurrence analyses are performed in Python Jupyter Notebooks in the ```temporal``` directory
+1. Open ```temporal_sql_extraction.ipynb``` to extract data from SQL Server to local disk. Update the settings (paths, file names, database, user_schema) as needed. Run.
+2. Run ```temporal_cooccurrence.ipynb``` to generate single concept age distributions and concept pair delta distributions. 
+3. Run ```generate_csv.ipynb``` to save data as csv files for sharing or loading to SQL server. 
+
+
 ## Results
 
 Exporting from the OMOP database produces files containing PII (```person.txt``` and ```unique_patient_concept_pairs_date.txt```). Please do not share these files. 
