@@ -47,10 +47,25 @@ WHERE procedure_concept_id != 0
 	AND c.domain_id = 'Procedure'	-- Make sure we only get conditions from the condition_occurrence table
 	AND i.concept_id IS NULL		-- Make sure condition is not an iatrogenic code;
 
--- Export demographics from the person table
+
+-- -------------------------------------------------------------
+-- Demographics
+-- Two options:
+-- 1) export raw demographics
+-- 2) use custom defined race ancestor concepts to get higher level race concepts
+-- -------------------------------------------------------------
+
+-- Option 1) Export demographics from the person table
 :OUT D:\cohd\data\person.txt
 SELECT person_id, gender_concept_id, race_concept_id, ethnicity_concept_id
 FROM person;
+
+-- Option 2) Export demographics from the person table
+:OUT D:\cohd\data\person.txt
+SELECT person_id, gender_concept_id, r.ancestor_concept_id AS race_concept_id, ethnicity_concept_id
+FROM person p
+JOIN user_schema.dbo.race_ancestor_concepts r ON p.race_concept_id = r.race_concept_id;
+
 
 -- -------------------------------------------------------------
 -- Concept hierarchy
