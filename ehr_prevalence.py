@@ -428,7 +428,7 @@ def randomize_count(count, min_random=1):
     -------
     Randomized count
     """
-    return max(randomize_count(count), min_random)
+    return max(numpy.random.poisson(count), min_random)
 
     
 def merge_concepts_years(cp_data, year_min, year_max):
