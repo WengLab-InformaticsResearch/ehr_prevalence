@@ -413,6 +413,23 @@ def load_concept_pairs(file):
     fh.close()
     return concept_pairs
 
+
+def randomize_count(count, min_random=1):
+    """ Randomize count using Poisson
+
+    NOTE: this code has not been tested
+
+    Parameters
+    ----------
+    count: count to be randomized
+    min_random: minimum randomized value (inclusive)
+    
+    Returns
+    -------
+    Randomized count
+    """
+    return max(randomize_count(count), min_random)
+
     
 def merge_concepts_years(cp_data, year_min, year_max):
     """Merge data over the specified year range
@@ -603,7 +620,7 @@ def single_concept_yearly_counts(output_dir, cp_data, randomize=True, min_count=
             
             # Randomize counts to protect patients
             if randomize:
-                npts = numpy.random.poisson(npts)
+                npts = randomize_count(npts)
 
             # Write to file
             writer.writerow([concept_id, year, npts, npts/year_numpatients[year]])
@@ -667,7 +684,7 @@ def single_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
         
         # Randomize counts to protect patients
         if randomize:
-            npts = numpy.random.poisson(npts)
+            npts = randomize_count(npts)
 
         # Write concept ID and count to file
         writer.writerow([concept_id, npts])
@@ -747,7 +764,7 @@ def paired_concept_yearly_counts(output_dir, cp_data, randomize=True, min_count=
 
                 # Randomize counts to protect patients
                 if randomize:
-                    npts = numpy.random.poisson(npts)
+                    npts = randomize_count(npts)
                 
                 writer.writerow([concept_id_1, concept_id_2, year, npts, npts/n_patients_year])
 
@@ -834,7 +851,7 @@ def paired_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
 
             # Randomize counts to protect patients
             if randomize:
-                npts = numpy.random.poisson(npts)
+                npts = randomize_count(npts)
 
             # Write concept_id_1, concept_id_2, and co-occurrence count to file
             writer.writerow([concept_id_1, concept_id_2, npts])
@@ -904,7 +921,7 @@ def single_concept_yearly_deviation(output_dir, cp_data, concepts, year_range, r
 
         # Randomize each annual count
         if randomize:
-            counts = numpy.random.poisson(counts)
+            counts = randomize_count(counts)
 
         # Calculate the mean of the (maybe randomized) prevalence rates
         m = numpy.mean(counts / ppy)
@@ -969,7 +986,7 @@ def paired_concept_yearly_deviation(output_dir, cp_data, concept_pairs, year_ran
 
         # Randomize each annual count
         if randomize:
-            counts = numpy.random.poisson(counts)
+            counts = randomize_count(counts)
 
         # Calculate the mean of the (maybe randomized) prevalence rates
         m = numpy.mean(counts / ppy)
