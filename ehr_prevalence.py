@@ -184,13 +184,13 @@ def load_patient_data(file, database, extra_header_lines_skip=0):
     fh, reader = _open_csv_reader(file, database)
  
     # Read header line to get column names
-    header = reader.next()
+    header = next(reader)
     columns = _find_columns(header, ['person_id', 'ethnicity_concept_id', 'race_concept_id', 'gender_concept_id'])
     table_width = len(header)
 
     # Skip extra formatting lines after header
     for i in range(extra_header_lines_skip):
-        reader.next()
+        next(reader)
 
     # Read in each row
     patient_info = defaultdict(list)
@@ -230,13 +230,13 @@ def load_concept_patient_data(file, database, patient_info, extra_header_lines_s
     fh, reader = _open_csv_reader(file, database)
 
     # Read header
-    header = reader.next()
+    header = next(reader)
     columns = _find_columns(header, ['person_id', 'date', 'concept_id'])
     table_width = len(header)
 
     # Skip extra formatting lines after header
     for i in range(extra_header_lines_skip):
-        reader.next()
+        next(reader)
 
     # Read in each row of the file
     concept_year_patient = defaultdict(lambda: defaultdict(set))
@@ -275,7 +275,7 @@ def load_concept_patient_data(file, database, patient_info, extra_header_lines_s
     
     # Count how many patients in each year
     year_numpatients = defaultdict(lambda: 0)
-    for year, pts in year_patients.items():
+    for year, pts in list(year_patients.items()):
         year_numpatients[year] = float(len(pts))
     
     logging.info("Loaded data for %d patients and %d concepts from %d rows." %
@@ -304,7 +304,7 @@ def load_concepts(file, database, extra_header_lines_skip=0):
     fh, reader = _open_csv_reader(file, database)
 
     # Read header
-    header = reader.next()
+    header = next(reader)
     table_width = len(header)
     if table_width == 4:
         columns = _find_columns(header, ['concept_id', 'concept_name', 'domain_id', 'concept_class_id'])
@@ -315,7 +315,7 @@ def load_concepts(file, database, extra_header_lines_skip=0):
 
     # Skip extra formatting lines after header
     for i in range(extra_header_lines_skip):
-        reader.next()
+        next(reader)
 
     # Read in each row of the file
     concepts = dict()
@@ -362,13 +362,13 @@ def load_descendants(file, database, extra_header_lines_skip=0):
     fh, reader = _open_csv_reader(file, database)
 
     # Read header
-    header = reader.next()
+    header = next(reader)
     columns = _find_columns(header, ['concept_id', 'descendant_concept_id'])
     table_width = len(header)
 
     # Skip extra formatting lines after header
     for i in range(extra_header_lines_skip):
-        reader.next()
+        next(reader)
 
     # Read in each row of the file and add the descendants to the dictionary
     concept_descendants = defaultdict(set)
@@ -401,7 +401,7 @@ def load_concept_pairs(file):
     fh, reader = _open_csv_reader(file, 'NA')
 
     # Skip the header
-    reader.next()
+    next(reader)
 
     # Read in each row of the file and add the pair of concept IDs to the list
     concept_pairs = list()
@@ -459,7 +459,7 @@ def merge_concepts_years(cp_data, year_min, year_max):
             logging.info('%d%%' % round(counter / float(n_concepts) * 100))
             
         pts_merged = list()
-        for year, pts in concept_year_patient[concept_id].items():
+        for year, pts in list(concept_year_patient[concept_id].items()):
             # Skip if this is not in the desired year range
             if year < year_min or year > year_max:
                 continue
@@ -473,7 +473,7 @@ def merge_concepts_years(cp_data, year_min, year_max):
     # Merge the set of all patients across the years
     year_patient = cp_data.year_patient
     pts_merged = list()
-    for year, pts in year_patient.items():
+    for year, pts in list(year_patient.items()):
         if year >= year_min and year <= year_max:
             # Note: faster to concatenate lists and then convert to set later
             pts_merged.extend(year_patient[year])
@@ -612,7 +612,7 @@ def single_concept_yearly_counts(output_dir, cp_data, randomize=True, min_count=
         if counter % progress_interval == 0:
             logging.info('%d%%' % round(counter / float(n_concepts) * 100))
             
-        for year, pts in concept_year_patient[concept_id].items():
+        for year, pts in list(concept_year_patient[concept_id].items()):
             # Exclude concepts with low count for patient protection
             npts = len(pts)        
             if npts < min_count:
@@ -737,7 +737,7 @@ def paired_concept_yearly_counts(output_dir, cp_data, randomize=True, min_count=
         if counter % progress_interval == 0:
             logging.info('%d%%' % round(counter / float(n_concepts) * 100))
         
-        for year, pts_1 in concept_year_patient[concept_id_1].items():
+        for year, pts_1 in list(concept_year_patient[concept_id_1].items()):
             n_patients_year = float(year_numpatients[year])
             
             # Skip this iteration if the single concept count is less than the minimum
@@ -823,7 +823,7 @@ def paired_concept_ranged_counts(output_dir, cp_ranged, randomize=True, min_coun
     
     # How often to display progress message
     n_concepts = len(concept_ids)
-    n_concept_pairs = numpy.sum(numpy.array(range(n_concepts - 1), dtype=numpy.float))
+    n_concept_pairs = numpy.sum(numpy.array(list(range(n_concepts - 1)), dtype=numpy.float))
     progress_interval = 100
     logging.info('%d concepts meeting min_count, %d possible pairs of concepts' % (len(concept_ids), n_concept_pairs))
 
@@ -1027,7 +1027,7 @@ def quality_analysis(output_dir, cp_data, concepts, min_count=11):
     for concept_id in concept_year_patient:   
         domain_id = concepts[concept_id]['domain_id']
         
-        for year, pts in concept_year_patient[concept_id].items():
+        for year, pts in list(concept_year_patient[concept_id].items()):
             domain_year_concepts[domain_id][year] += 1
             domain_year_counts[domain_id][year] += len(pts)
     
@@ -1035,8 +1035,8 @@ def quality_analysis(output_dir, cp_data, concepts, min_count=11):
     output_file = os.path.join(output_dir, 'dq_domain_year_num_concepts.txt')
     fh, writer = _open_csv_writer(output_file)
     writer.writerow(['domain_id', 'year', 'num_concepts'])
-    for domain_id, year_concepts in domain_year_concepts.items():
-        for year, num_concepts in year_concepts.items():
+    for domain_id, year_concepts in list(domain_year_concepts.items()):
+        for year, num_concepts in list(year_concepts.items()):
             writer.writerow([domain_id, year, num_concepts])
     fh.close()
 
@@ -1044,8 +1044,8 @@ def quality_analysis(output_dir, cp_data, concepts, min_count=11):
     output_file = os.path.join(output_dir, 'dq_domain_year_total_counts.txt')
     fh, writer = _open_csv_writer(output_file)
     writer.writerow(['domain_id', 'year', 'total_count'])
-    for domain_id, year_counts in domain_year_counts.items():
-        for year, total_count in year_counts.items():
+    for domain_id, year_counts in list(domain_year_counts.items()):
+        for year, total_count in list(year_counts.items()):
             total_count = max(total_count, min_count)
             writer.writerow([domain_id, year, total_count])
     fh.close()
@@ -1054,7 +1054,7 @@ def quality_analysis(output_dir, cp_data, concepts, min_count=11):
     output_file = os.path.join(output_dir, 'dq_patients_year.txt')
     fh, writer = _open_csv_writer(output_file)
     writer.writerow(['year', 'num_patients'])
-    for year, pts in year_patient.items():
+    for year, pts in list(year_patient.items()):
         count = max(len(pts), min_count)
         writer.writerow([year, count])
     fh.close()
